@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Cryptocurrency</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        h1 {
+            background-color: #4CAF50;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .panel {
+            background-color: white;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h3 {
+            color: #2f4f4f;
+        }
+        label {
+            font-weight: bold;
+        }
+        input[type="number"], input[type="text"] {
+            padding: 8px;
+            width: 200px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #f7f7f7;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 0;
+            font-family: monospace;
+            color: #444;
+        }
+        #status {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Peer-to-Peer Cryptocurrency</h1>
+
+    <!-- Panel to display blocks and transactions -->
+    <div class="panel">
+        <h3>Blockchain</h3>
+        <pre id="blockchain-output"></pre>
+    </div>
+
+    <!-- Panel for sending cryptocurrency -->
+    <div class="panel">
+        <h3>Send Cryptocurrency</h3>
+        <label for="sendAmount">Amount: </label>
+        <input type="number" id="sendAmount" placeholder="Enter amount to send">
+        <button onclick="sendCrypto()">Send</button>
+        <p>Generated Code: <span id="sendCode"></span></p>
+    </div>
+
+    <!-- Panel for receiving cryptocurrency -->
+    <div class="panel">
+        <h3>Receive Cryptocurrency</h3>
+        <label for="receiveCode">Enter Code to Claim: </label>
+        <input type="text" id="receiveCode" placeholder="Enter the 6-digit code">
+        <button onclick="receiveCrypto()">Claim</button>
+        <p>Status: <span id="status"></span></p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/crypto-js.js"></script>
+    <script>
+        // Basic Blockchain Setup
+        class Block {
+            constructor(index, previousHash, data, timestamp) {
+                this.index = index;
+                this.previousHash = previousHash;
+                this.data = data; // Store as stringified data
+                this.timestamp = timestamp;
+                this.hash = this.calculateHash();
+            }
+
+            calculateHash() {
+                return CryptoJS.SHA256(this.index + this.previousHash + this.data + this.timestamp).toString();
+            }
+        }
+
+        class Blockchain {
+            constructor() {
+                this.chain = [this.createGenesisBlock()];
+            }
+
+            createGenesisBlock() {
+                return new Block(0, "0", JSON.stringify({ message: "Genesis Block" }), Date.now());
+            }
+
+            getLatestBlock() {
+                return this.chain[this.chain.length - 1];
+            }
+
+            addBlock(newBlock) {
+                newBlock.previousHash = this.getLatestBlock().hash;
+                newBlock.hash = newBlock.calculateHash();
+                this.chain.push(newBlock);
+            }
+        }
+
+        let myBlockchain = new Blockchain();
+        let cryptoAmount = 1000; // Initial amount for demonstration
+        let transactionCode = '';
+
+        // Display Blockchain in the browser
+        function displayBlockchain() {
+            document.getElementById("blockchain-output").textContent = JSON.stringify(myBlockchain, null, 4);
+        }
+
+        // Send cryptocurrency and generate code
+        function sendCrypto() {
+            let amount = document.getElementById("sendAmount").value;
+            if (amount <= 0 || amount > cryptoAmount) {
+                alert("Invalid amount!");
+                return;
+            }
+
+            transactionCode = Math.floor(Math.random() * 1000000).toString().padStart(6, '0'); // Generate a 6-digit code
+            document.getElementById("sendCode").textContent = transactionCode;
+
+            // Record transaction on blockchain
+            let newTransaction = {
+                from: 'User1', // Placeholder for user
+                to: 'User2', // Placeholder for receiver
+                amount: amount,
+                code: transactionCode
+            };
+
+            myBlockchain.addBlock(new Block(myBlockchain.chain.length, myBlockchain.getLatestBlock().hash, JSON.stringify(newTransaction), Date.now()));
+
+            // Send blockchain data to peer
+            sendBlockchainData();
+
+            displayBlockchain();
+        }
+
+        // Receive cryptocurrency if the user enters the correct code
+        function receiveCrypto() {
+            let enteredCode = document.getElementById("receiveCode").value;
+            let found = false;
+
+            // Search for transaction matching entered code
+            myBlockchain.chain.forEach(block => {
+                let transaction = JSON.parse(block.data); // Parse the data back to object
+                if (transaction.code === enteredCode) {
+                    document.getElementById("status").textContent = `Transaction found: ${transaction.amount} crypto received!`;
+                    found = true;
+                }
+            });
+
+            if (!found) {
+                document.getElementById("status").textContent = "Transaction code not found.";
+            }
+        }
+
+        // WebRTC setup for peer-to-peer connection
+        let localConnection, remoteConnection;
+        let sendChannel, receiveChannel;
+
+        function startConnection() {
+            localConnection = new RTCPeerConnection();
+            remoteConnection = new RTCPeerConnection();
+
+            sendChannel = localConnection.createDataChannel('sendDataChannel');
+            sendChannel.onopen = () => {
+                console.log("Data channel opened, ready to send data!");
+            };
+            sendChannel.onclose = () => console.log("Data channel closed");
+
+            remoteConnection.ondatachannel = event => {
+                receiveChannel = event.channel;
+                receiveChannel.onmessage = e => {
+                    let receivedBlockchain = JSON.parse(e.data);
+                    console.log("Received Blockchain: ", receivedBlockchain); // Debugging output
+                    myBlockchain = new Blockchain();
+                    receivedBlockchain.chain.forEach(block => {
+                        myBlockchain.addBlock(new Block(block.index, block.previousHash, block.data, block.timestamp));
+                    });
+                    displayBlockchain();
+                };
+            };
+
+            localConnection.createOffer().then(offer => {
+                localConnection.setLocalDescription(offer);
+                remoteConnection.setRemoteDescription(offer);
+                remoteConnection.createAnswer().then(answer => {
+                    remoteConnection.setLocalDescription(answer);
+                    localConnection.setRemoteDescription(answer);
+                });
+            });
+        }
+
+        function sendBlockchainData() {
+            // Ensure data is sent only when the send channel is open
+            if (sendChannel.readyState === "open") {
+                const blockchainData = JSON.stringify(myBlockchain);
+                sendChannel.send(blockchainData);  // Send blockchain to peer
+            } else {
+                console.log("Send Channel is not open yet.");
+            }
+        }
+
+        // Start connection when the page is loaded
+        startConnection();
+
+        // Initially display the blockchain
+        displayBlockchain();
+    </script>
+</body>
+</html>
