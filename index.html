@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Cryptocurrency</title>
+    <title>Simple Cryptocurrency with Close-Range Data Transfer</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -159,7 +159,7 @@
 
             myBlockchain.addBlock(new Block(myBlockchain.chain.length, myBlockchain.getLatestBlock().hash, JSON.stringify(newTransaction), Date.now()));
 
-            // Send blockchain data to peer
+            // Send blockchain data to peer (WebRTC Data Channel)
             sendBlockchainData();
 
             displayBlockchain();
@@ -184,7 +184,7 @@
             }
         }
 
-        // WebRTC setup for peer-to-peer connection
+        // WebRTC setup for peer-to-peer connection (Close-Range)
         let localConnection, remoteConnection;
         let sendChannel, receiveChannel;
 
@@ -211,6 +211,7 @@
                 };
             };
 
+            // Create offer and set up the connection
             localConnection.createOffer().then(offer => {
                 localConnection.setLocalDescription(offer);
                 remoteConnection.setRemoteDescription(offer);
